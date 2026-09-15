@@ -12,13 +12,33 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = ROOT / "artifacts" / "model.json"
 
+WEIGHT_FILES = {
+    "net.0.weight": "w_net_0_weight.json",
+    "net.0.bias": "w_net_0_bias.json",
+    "net.3.weight": "w_net_3_weight.json",
+    "net.3.bias": "w_net_3_bias.json",
+    "net.5.weight": "w_net_5_weight.json",
+    "net.5.bias": "w_net_5_bias.json",
+}
+
 
 def gelu(x: np.ndarray) -> np.ndarray:
     return 0.5 * x * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * x**3)))
 
 
 def load_bundle(path: Path = DEFAULT_MODEL) -> dict:
-    return json.loads(Path(path).read_text())
+    path = Path(path)
+    if path.exists():
+        bundle = json.loads(path.read_text())
+        if "weights" in bundle:
+            return bundle
+    meta_path = path.parent / "model_meta.json"
+    bundle = json.loads(meta_path.read_text())
+    weights = {}
+    for key, fn in WEIGHT_FILES.items():
+        weights[key] = json.loads((path.parent / fn).read_text())
+    bundle["weights"] = weights
+    return bundle
 
 
 def forward(bundle: dict, x_raw: np.ndarray) -> np.ndarray:
@@ -124,12 +144,11 @@ def demo_from_open_meteo(bundle: dict) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
-    ap.add_argument("--live", action="store_true", help="Pull latest GFS seamless profile for Casey and forecast")
+    ap.add_argument("--live", action="store_true")
     args = ap.parse_args()
     bundle = load_bundle(Path(args.model))
     if args.live:
-        result = demo_from_open_meteo(bundle)
-        print(json.dumps(result, indent=2))
+        print(json.dumps(demo_from_open_meteo(bundle), indent=2))
     else:
         print(json.dumps({"name": bundle["name"], "metrics": bundle["metrics"], "site": bundle["site"]}, indent=2))
 
